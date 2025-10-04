@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import { parseIncompleteMarkdown } from "../lib/parse-incomplete-markdown";
 
 describe("parseIncompleteMarkdown", () => {

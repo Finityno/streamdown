@@ -3,9 +3,12 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   dts: true,
   entry: ["index.tsx"],
-  format: ["cjs", "esm"],
+  format: ["esm", "cjs"],
   minify: true,
   outDir: "dist",
-  sourcemap: false,
-  external: ["react", "react-dom"],
+  sourcemap: true,
+  external: ["react", "react-native", "react-native-marked", "react-native-svg", "marked"],
+  esbuildOptions(options) {
+    options.platform = "neutral";
+  },
 });

@@ -1,11 +1,9 @@
-import * as matchers from "@testing-library/jest-dom/matchers";
-import { cleanup } from "@testing-library/react";
-import { afterEach, expect } from "vitest";
+// Jest setup for React Native tests
+import '@testing-library/react-native/extend-expect';
 
-// Extend Vitest's expect with jest-dom matchers
-expect.extend(matchers);
-
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-});
+// Silence console warnings during tests
+global.console = {
+  ...console,
+  warn: jest.fn(),
+  error: jest.fn(),
+};

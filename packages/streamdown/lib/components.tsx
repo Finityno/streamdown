@@ -1,562 +1,233 @@
+import { type ReactNode } from "react";
 import {
-  type DetailedHTMLProps,
-  type HTMLAttributes,
-  type ImgHTMLAttributes,
-  isValidElement,
-  type JSX,
-  memo,
-  useContext,
-} from "react";
-import type { ExtraProps, Options } from "react-markdown";
-import type { BundledLanguage } from "shiki";
-import { ControlsContext, MermaidConfigContext } from "../index";
-import {
-  CodeBlock,
-  CodeBlockCopyButton,
-  CodeBlockDownloadButton,
-} from "./code-block";
-import { ImageComponent } from "./image";
-import { Mermaid } from "./mermaid";
-import { TableCopyButton, TableDownloadDropdown } from "./table";
-import { cn } from "./utils";
+  Text,
+  View,
+  Linking,
+  type TextStyle,
+  useColorScheme,
+} from "react-native";
+import { Renderer } from "react-native-marked";
+import type { RendererInterface } from "react-native-marked";
+import { createStyles, type Theme } from "./styles";
+import { CodeBlock } from "./code-block";
+import { StreamdownImage } from "./image";
+import { TableCopyButton } from "./table";
 
-const LANGUAGE_REGEX = /language-([^\s]+)/;
+/**
+ * Optimized Custom Renderer with memoization and performance patterns
+ * from the original streamdown implementation
+ */
+export class CustomStreamdownRenderer
+  extends Renderer
+  implements RendererInterface
+{
+  private theme?: Theme;
+  private styles: ReturnType<typeof createStyles>;
+  private colorScheme: "light" | "dark";
 
-type MarkdownPoint = { line?: number; column?: number };
-type MarkdownPosition = { start?: MarkdownPoint; end?: MarkdownPoint };
-type MarkdownNode = {
-  position?: MarkdownPosition;
-  properties?: { className?: string };
-};
+  // Memoized style maps for headings
+  private headingStyleMap: Record<number, TextStyle>;
 
-type WithNode<T> = T & {
-  node?: MarkdownNode;
-  children?: React.ReactNode;
-  className?: string;
-};
+  constructor(theme?: Theme, colorScheme?: "light" | "dark") {
+    super();
+    this.theme = theme;
+    this.colorScheme = colorScheme || "dark";
+    this.styles = createStyles(theme);
 
-function sameNodePosition(prev?: MarkdownNode, next?: MarkdownNode): boolean {
-  if (!(prev?.position || next?.position)) {
-    return true;
+    // Pre-compute heading styles for performance
+    this.headingStyleMap = {
+      1: this.styles.heading1,
+      2: this.styles.heading2,
+      3: this.styles.heading3,
+      4: this.styles.heading4,
+      5: this.styles.heading5,
+      6: this.styles.heading6,
+    };
   }
-  if (!(prev?.position && next?.position)) {
-    return false;
+
+  // Optimized heading rendering
+  heading(text: string | ReactNode, level: number): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.headingStyleMap[level]}>
+        {text}
+      </Text>
+    );
   }
 
-  const prevStart = prev.position.start;
-  const nextStart = next.position.start;
-  const prevEnd = prev.position.end;
-  const nextEnd = next.position.end;
+  // Paragraphs
+  paragraph(text: string | ReactNode): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.styles.paragraph}>
+        {text}
+      </Text>
+    );
+  }
 
-  return (
-    prevStart?.line === nextStart?.line &&
-    prevStart?.column === nextStart?.column &&
-    prevEnd?.line === nextEnd?.line &&
-    prevEnd?.column === nextEnd?.column
-  );
+  // Bold text
+  strong(text: string | ReactNode): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.styles.strong}>
+        {text}
+      </Text>
+    );
+  }
+
+  // Italic text
+  em(text: string | ReactNode): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.styles.em}>
+        {text}
+      </Text>
+    );
+  }
+
+  // Strikethrough text
+  del(text: string | ReactNode): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.styles.del}>
+        {text}
+      </Text>
+    );
+  }
+
+  // Links with optimized handler
+  link(href: string, text: string | ReactNode): ReactNode {
+    const handlePress = async () => {
+      if (href && href !== "streamdown:incomplete-link") {
+        const supported = await Linking.canOpenURL(href);
+        if (supported) {
+          await Linking.openURL(href);
+        }
+      }
+    };
+
+    // Don't make incomplete links pressable
+    if (href === "streamdown:incomplete-link") {
+      return (
+        <Text key={this.getKey()} style={this.styles.link}>
+          {text}
+        </Text>
+      );
+    }
+
+    return (
+      <Text key={this.getKey()} style={this.styles.link} onPress={handlePress}>
+        {text}
+      </Text>
+    );
+  }
+
+  // Inline code
+  codespan(text: string, _styles?: TextStyle): ReactNode {
+    return (
+      <Text key={this.getKey()} style={this.styles.inlineCode}>
+        {text}
+      </Text>
+    );
+  }
+
+  // Code blocks with syntax highlighting
+  code(code: string, language?: string): ReactNode {
+    return (
+      <View key={this.getKey()}>
+        <CodeBlock
+          code={code}
+          language={language || "text"}
+          colorScheme={this.colorScheme}
+        />
+      </View>
+    );
+  }
+
+  // Blockquotes
+  blockquote(text: string | ReactNode): ReactNode {
+    return (
+      <View key={this.getKey()} style={this.styles.blockquote}>
+        <Text style={this.styles.blockquoteText}>{text}</Text>
+      </View>
+    );
+  }
+
+  // Lists
+  list(body: string | ReactNode, ordered: boolean): ReactNode {
+    return (
+      <View key={this.getKey()} style={this.styles.list}>
+        {body}
+      </View>
+    );
+  }
+
+  listItem(text: string | ReactNode, ordered: boolean, index: number): ReactNode {
+    const bullet = ordered ? `${index + 1}.` : "•";
+
+    return (
+      <View
+        key={this.getKey()}
+        style={ordered ? this.styles.orderedListItem : this.styles.listItem}
+      >
+        <Text style={this.styles.listItemBullet}>{bullet}</Text>
+        <View style={{ flex: 1 }}>
+          <Text>{text}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Horizontal rule
+  hr(): ReactNode {
+    return <View key={this.getKey()} style={this.styles.hr} />;
+  }
+
+  // Table with copy functionality
+  table(header: ReactNode, body: ReactNode): ReactNode {
+    // TODO: Extract table content for copy functionality
+    return (
+      <View key={this.getKey()}>
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginBottom: 8 }}>
+          <TableCopyButton tableContent="" theme={this.theme} />
+        </View>
+        <View style={this.styles.table}>
+          {header}
+          {body}
+        </View>
+      </View>
+    );
+  }
+
+  tableRow(content: ReactNode, isHeader: boolean): ReactNode {
+    return (
+      <View
+        key={this.getKey()}
+        style={[
+          this.styles.tableRow,
+          isHeader ? this.styles.tableHeader : undefined,
+        ]}
+      >
+        {content}
+      </View>
+    );
+  }
+
+  tableCell(content: string | ReactNode, isHeader: boolean): ReactNode {
+    return (
+      <Text
+        key={this.getKey()}
+        style={isHeader ? this.styles.tableHeaderCell : this.styles.tableCell}
+      >
+        {content}
+      </Text>
+    );
+  }
+
+  // Optimized images with loading states
+  image(uri: string, alt?: string): ReactNode {
+    return (
+      <StreamdownImage
+        key={this.getKey()}
+        uri={uri}
+        alt={alt}
+        theme={this.theme}
+      />
+    );
+  }
 }
-
-// Shared comparators
-function sameClassAndNode(
-  prev: { className?: string; node?: MarkdownNode },
-  next: { className?: string; node?: MarkdownNode }
-) {
-  return (
-    prev.className === next.className && sameNodePosition(prev.node, next.node)
-  );
-}
-
-const shouldShowControls = (
-  config: boolean | { table?: boolean; code?: boolean; mermaid?: boolean },
-  type: "table" | "code" | "mermaid"
-) => {
-  if (typeof config === "boolean") {
-    return config;
-  }
-
-  return config[type] !== false;
-};
-
-type OlProps = WithNode<JSX.IntrinsicElements["ol"]>;
-const MemoOl = memo<OlProps>(
-  ({ children, className, ...props }: OlProps) => (
-    <ol
-      className={cn(
-        "ml-4 list-outside list-decimal whitespace-normal",
-        className
-      )}
-      data-streamdown="ordered-list"
-      {...props}
-    >
-      {children}
-    </ol>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoOl.displayName = "MarkdownOl";
-
-type LiProps = WithNode<JSX.IntrinsicElements["li"]>;
-
-const MemoLi = memo<LiProps>(
-  ({ children, className, ...props }: LiProps) => (
-    <li
-      className={cn("py-1", className)}
-      data-streamdown="list-item"
-      {...props}
-    >
-      {children}
-    </li>
-  ),
-  (p, n) => p.className === n.className && sameNodePosition(p.node, n.node)
-);
-MemoLi.displayName = "MarkdownLi";
-
-type UlProps = WithNode<JSX.IntrinsicElements["ul"]>;
-const MemoUl = memo<UlProps>(
-  ({ children, className, ...props }: UlProps) => (
-    <ul
-      className={cn("ml-4 list-outside list-disc whitespace-normal", className)}
-      data-streamdown="unordered-list"
-      {...props}
-    >
-      {children}
-    </ul>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoUl.displayName = "MarkdownUl";
-
-type HrProps = WithNode<JSX.IntrinsicElements["hr"]>;
-const MemoHr = memo<HrProps>(
-  ({ className, ...props }: HrProps) => (
-    <hr
-      className={cn("my-6 border-border", className)}
-      data-streamdown="horizontal-rule"
-      {...props}
-    />
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoHr.displayName = "MarkdownHr";
-
-type StrongProps = WithNode<JSX.IntrinsicElements["span"]>;
-const MemoStrong = memo<StrongProps>(
-  ({ children, className, ...props }: StrongProps) => (
-    <span
-      className={cn("font-semibold", className)}
-      data-streamdown="strong"
-      {...props}
-    >
-      {children}
-    </span>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoStrong.displayName = "MarkdownStrong";
-
-type AProps = WithNode<JSX.IntrinsicElements["a"]> & { href?: string };
-const MemoA = memo<AProps>(
-  ({ children, className, href, ...props }: AProps) => {
-    const isIncomplete = href === "streamdown:incomplete-link";
-
-    return (
-      <a
-        className={cn(
-          "wrap-anywhere font-medium text-primary underline",
-          className
-        )}
-        data-incomplete={isIncomplete}
-        data-streamdown="link"
-        href={href}
-        rel="noreferrer"
-        target="_blank"
-        {...props}
-      >
-        {children}
-      </a>
-    );
-  },
-  (p, n) => sameClassAndNode(p, n) && p.href === n.href
-);
-MemoA.displayName = "MarkdownA";
-
-type HeadingProps<TTag extends keyof JSX.IntrinsicElements> = WithNode<
-  JSX.IntrinsicElements[TTag]
->;
-
-const MemoH1 = memo<HeadingProps<"h1">>(
-  ({ children, className, ...props }) => (
-    <h1
-      className={cn("mt-6 mb-2 font-semibold text-3xl", className)}
-      data-streamdown="heading-1"
-      {...props}
-    >
-      {children}
-    </h1>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH1.displayName = "MarkdownH1";
-
-const MemoH2 = memo<HeadingProps<"h2">>(
-  ({ children, className, ...props }) => (
-    <h2
-      className={cn("mt-6 mb-2 font-semibold text-2xl", className)}
-      data-streamdown="heading-2"
-      {...props}
-    >
-      {children}
-    </h2>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH2.displayName = "MarkdownH2";
-
-const MemoH3 = memo<HeadingProps<"h3">>(
-  ({ children, className, ...props }) => (
-    <h3
-      className={cn("mt-6 mb-2 font-semibold text-xl", className)}
-      data-streamdown="heading-3"
-      {...props}
-    >
-      {children}
-    </h3>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH3.displayName = "MarkdownH3";
-
-const MemoH4 = memo<HeadingProps<"h4">>(
-  ({ children, className, ...props }) => (
-    <h4
-      className={cn("mt-6 mb-2 font-semibold text-lg", className)}
-      data-streamdown="heading-4"
-      {...props}
-    >
-      {children}
-    </h4>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH4.displayName = "MarkdownH4";
-
-const MemoH5 = memo<HeadingProps<"h5">>(
-  ({ children, className, ...props }) => (
-    <h5
-      className={cn("mt-6 mb-2 font-semibold text-base", className)}
-      data-streamdown="heading-5"
-      {...props}
-    >
-      {children}
-    </h5>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH5.displayName = "MarkdownH5";
-
-const MemoH6 = memo<HeadingProps<"h6">>(
-  ({ children, className, ...props }) => (
-    <h6
-      className={cn("mt-6 mb-2 font-semibold text-sm", className)}
-      data-streamdown="heading-6"
-      {...props}
-    >
-      {children}
-    </h6>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoH6.displayName = "MarkdownH6";
-
-type TableProps = WithNode<JSX.IntrinsicElements["table"]>;
-const MemoTable = memo<TableProps>(
-  ({ children, className, ...props }: TableProps) => {
-    const controlsConfig = useContext(ControlsContext);
-    const showTableControls = shouldShowControls(controlsConfig, "table");
-
-    return (
-      <div
-        className="my-4 flex flex-col space-y-2"
-        data-streamdown="table-wrapper"
-      >
-        {showTableControls && (
-          <div className="flex items-center justify-end gap-1">
-            <TableCopyButton />
-            <TableDownloadDropdown />
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table
-            className={cn(
-              "w-full border-collapse border border-border",
-              className
-            )}
-            data-streamdown="table"
-            {...props}
-          >
-            {children}
-          </table>
-        </div>
-      </div>
-    );
-  },
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoTable.displayName = "MarkdownTable";
-
-type TheadProps = WithNode<JSX.IntrinsicElements["thead"]>;
-const MemoThead = memo<TheadProps>(
-  ({ children, className, ...props }: TheadProps) => (
-    <thead
-      className={cn("bg-muted/80", className)}
-      data-streamdown="table-header"
-      {...props}
-    >
-      {children}
-    </thead>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoThead.displayName = "MarkdownThead";
-
-type TbodyProps = WithNode<JSX.IntrinsicElements["tbody"]>;
-const MemoTbody = memo<TbodyProps>(
-  ({ children, className, ...props }: TbodyProps) => (
-    <tbody
-      className={cn("divide-y divide-border bg-muted/40", className)}
-      data-streamdown="table-body"
-      {...props}
-    >
-      {children}
-    </tbody>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoTbody.displayName = "MarkdownTbody";
-
-type TrProps = WithNode<JSX.IntrinsicElements["tr"]>;
-const MemoTr = memo<TrProps>(
-  ({ children, className, ...props }: TrProps) => (
-    <tr
-      className={cn("border-border border-b", className)}
-      data-streamdown="table-row"
-      {...props}
-    >
-      {children}
-    </tr>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoTr.displayName = "MarkdownTr";
-
-type ThProps = WithNode<JSX.IntrinsicElements["th"]>;
-const MemoTh = memo<ThProps>(
-  ({ children, className, ...props }: ThProps) => (
-    <th
-      className={cn(
-        "whitespace-nowrap px-4 py-2 text-left font-semibold text-sm",
-        className
-      )}
-      data-streamdown="table-header-cell"
-      {...props}
-    >
-      {children}
-    </th>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoTh.displayName = "MarkdownTh";
-
-type TdProps = WithNode<JSX.IntrinsicElements["td"]>;
-const MemoTd = memo<TdProps>(
-  ({ children, className, ...props }: TdProps) => (
-    <td
-      className={cn("px-4 py-2 text-sm", className)}
-      data-streamdown="table-cell"
-      {...props}
-    >
-      {children}
-    </td>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoTd.displayName = "MarkdownTd";
-
-type BlockquoteProps = WithNode<JSX.IntrinsicElements["blockquote"]>;
-const MemoBlockquote = memo<BlockquoteProps>(
-  ({ children, className, ...props }: BlockquoteProps) => (
-    <blockquote
-      className={cn(
-        "my-4 border-muted-foreground/30 border-l-4 pl-4 text-muted-foreground italic",
-        className
-      )}
-      data-streamdown="blockquote"
-      {...props}
-    >
-      {children}
-    </blockquote>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoBlockquote.displayName = "MarkdownBlockquote";
-
-type SupProps = WithNode<JSX.IntrinsicElements["sup"]>;
-const MemoSup = memo<SupProps>(
-  ({ children, className, ...props }: SupProps) => (
-    <sup
-      className={cn("text-sm", className)}
-      data-streamdown="superscript"
-      {...props}
-    >
-      {children}
-    </sup>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoSup.displayName = "MarkdownSup";
-
-type SubProps = WithNode<JSX.IntrinsicElements["sub"]>;
-const MemoSub = memo<SubProps>(
-  ({ children, className, ...props }: SubProps) => (
-    <sub
-      className={cn("text-sm", className)}
-      data-streamdown="subscript"
-      {...props}
-    >
-      {children}
-    </sub>
-  ),
-  (p, n) => sameClassAndNode(p, n)
-);
-MemoSub.displayName = "MarkdownSub";
-
-const CodeComponent = ({
-  node,
-  className,
-  children,
-  ...props
-}: DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> &
-  ExtraProps) => {
-  const inline = node?.position?.start.line === node?.position?.end.line;
-  const mermaidConfig = useContext(MermaidConfigContext);
-  const controlsConfig = useContext(ControlsContext);
-
-  if (inline) {
-    return (
-      <code
-        className={cn(
-          "rounded bg-muted px-1.5 py-0.5 font-mono text-sm",
-          className
-        )}
-        data-streamdown="inline-code"
-        {...props}
-      >
-        {children}
-      </code>
-    );
-  }
-
-  const match = className?.match(LANGUAGE_REGEX);
-  const language = (match?.at(1) ?? "") as BundledLanguage;
-
-  // Extract code content from children safely
-  let code = "";
-  if (
-    isValidElement(children) &&
-    children.props &&
-    typeof children.props === "object" &&
-    "children" in children.props &&
-    typeof children.props.children === "string"
-  ) {
-    code = children.props.children;
-  } else if (typeof children === "string") {
-    code = children;
-  }
-
-  if (language === "mermaid") {
-    const showMermaidControls = shouldShowControls(controlsConfig, "mermaid");
-
-    return (
-      <div
-        className={cn(
-          "group relative my-4 h-auto rounded-xl border p-4",
-          className
-        )}
-        data-streamdown="mermaid-block"
-      >
-        {showMermaidControls && (
-          <div className="flex items-center justify-end gap-2">
-            <CodeBlockDownloadButton code={code} language={language} />
-            <CodeBlockCopyButton code={code} />
-          </div>
-        )}
-        <Mermaid chart={code} config={mermaidConfig} />
-      </div>
-    );
-  }
-
-  const showCodeControls = shouldShowControls(controlsConfig, "code");
-
-  return (
-    <CodeBlock
-      className={cn("overflow-x-auto border-t", className)}
-      code={code}
-      data-language={language}
-      data-streamdown="code-block"
-      language={language}
-      preClassName="overflow-x-auto font-mono text-xs p-4 bg-muted/40"
-    >
-      {showCodeControls && (
-        <>
-          <CodeBlockDownloadButton code={code} language={language} />
-          <CodeBlockCopyButton />
-        </>
-      )}
-    </CodeBlock>
-  );
-};
-
-const MemoCode = memo<
-  DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & ExtraProps
->(
-  CodeComponent,
-  (p, n) => p.className === n.className && sameNodePosition(p.node, n.node)
-);
-MemoCode.displayName = "MarkdownCode";
-
-const MemoImg = memo<
-  DetailedHTMLProps<ImgHTMLAttributes<HTMLImageElement>, HTMLImageElement> &
-    ExtraProps
->(
-  ImageComponent,
-  (p, n) => p.className === n.className && sameNodePosition(p.node, n.node)
-);
-
-MemoImg.displayName = "MarkdownImg";
-
-export const components: Options["components"] = {
-  ol: MemoOl,
-  li: MemoLi,
-  ul: MemoUl,
-  hr: MemoHr,
-  strong: MemoStrong,
-  a: MemoA,
-  h1: MemoH1,
-  h2: MemoH2,
-  h3: MemoH3,
-  h4: MemoH4,
-  h5: MemoH5,
-  h6: MemoH6,
-  table: MemoTable,
-  thead: MemoThead,
-  tbody: MemoTbody,
-  tr: MemoTr,
-  th: MemoTh,
-  td: MemoTd,
-  blockquote: MemoBlockquote,
-  code: MemoCode,
-  img: MemoImg,
-  pre: ({ children }) => children,
-  sup: MemoSup,
-  sub: MemoSub,
-};

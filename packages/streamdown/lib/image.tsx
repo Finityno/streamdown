@@ -1,98 +1,118 @@
-import { DownloadIcon } from "lucide-react";
-import type { DetailedHTMLProps, ImgHTMLAttributes } from "react";
-import type { ExtraProps } from "react-markdown";
-import { cn, save } from "./utils";
+import { memo, useState } from "react";
+import {
+  View,
+  Image as RNImage,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+  type ImageStyle,
+} from "react-native";
 
-type ImageComponentProps = DetailedHTMLProps<
-  ImgHTMLAttributes<HTMLImageElement>,
-  HTMLImageElement
-> &
-  ExtraProps;
+type StreamdownImageProps = {
+  uri: string;
+  alt?: string;
+  style?: ImageStyle;
+  theme?: any;
+};
 
-export const ImageComponent = ({
-  node,
-  className,
-  src,
-  alt,
-  ...props
-}: ImageComponentProps) => {
-  const downloadImage = async () => {
-    if (!src) {
-      return;
-    }
+const StreamdownImageComponent = ({ uri, alt, style, theme }: StreamdownImageProps) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-    try {
-      const response = await fetch(src);
-      const blob = await response.blob();
-
-      // Extract filename from URL or use alt text with proper extension
-      const urlPath = new URL(src, window.location.origin).pathname;
-      const originalFilename = urlPath.split("/").pop() || "";
-      const hasExtension =
-        originalFilename.includes(".") &&
-        originalFilename.split(".").pop()?.length! <= 4;
-
-      let filename = "";
-
-      if (hasExtension) {
-        filename = originalFilename;
-      } else {
-        // Determine extension from blob type
-        const mimeType = blob.type;
-        let extension = "png"; // default
-
-        if (mimeType.includes("jpeg") || mimeType.includes("jpg")) {
-          extension = "jpg";
-        } else if (mimeType.includes("png")) {
-          extension = "png";
-        } else if (mimeType.includes("svg")) {
-          extension = "svg";
-        } else if (mimeType.includes("gif")) {
-          extension = "gif";
-        } else if (mimeType.includes("webp")) {
-          extension = "webp";
-        }
-
-        const baseName = alt || originalFilename || "image";
-        filename = `${baseName.replace(/\.[^/.]+$/, "")}.${extension}`;
-      }
-
-      save(filename, blob, blob.type);
-    } catch (error) {
-      console.error("Failed to download image:", error);
-    }
+  const handleLoadStart = () => setLoading(true);
+  const handleLoadEnd = () => setLoading(false);
+  const handleError = () => {
+    setLoading(false);
+    setError(true);
   };
 
-  if (!src) {
-    return null;
+  if (error) {
+    return (
+      <View style={[styles.container, styles.errorContainer]}>
+        <Text style={styles.errorText}>
+          {alt || "Failed to load image"}
+        </Text>
+      </View>
+    );
   }
 
   return (
-    <div
-      className="group relative my-4 inline-block"
-      data-streamdown="image-wrapper"
-    >
-      {/** biome-ignore lint/nursery/useImageSize: "unknown size" */}
-      {/** biome-ignore lint/performance/noImgElement: "streamdown is framework-agnostic" */}
-      <img
-        alt={alt}
-        className={cn("max-w-full rounded-lg", className)}
-        data-streamdown="image"
-        src={src}
-        {...props}
+    <View style={styles.container}>
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={theme?.colors?.primary || "#007AFF"}
+          />
+        </View>
+      )}
+      <RNImage
+        source={{ uri }}
+        style={[
+          styles.image,
+          style,
+          loading && styles.hidden,
+        ]}
+        onLoadStart={handleLoadStart}
+        onLoadEnd={handleLoadEnd}
+        onError={handleError}
+        accessible={true}
+        accessibilityLabel={alt}
+        resizeMode="cover"
       />
-      <div className="pointer-events-none absolute inset-0 hidden rounded-lg bg-black/10 group-hover:block" />
-      <button
-        className={cn(
-          "absolute right-2 bottom-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-background/90 shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-background",
-          "opacity-0 group-hover:opacity-100"
-        )}
-        onClick={downloadImage}
-        title="Download image"
-        type="button"
-      >
-        <DownloadIcon size={14} />
-      </button>
-    </div>
+      {alt && !loading && !error && (
+        <Text style={[styles.caption, { color: theme?.colors?.mutedForeground }]}>
+          {alt}
+        </Text>
+      )}
+    </View>
   );
 };
+
+export const StreamdownImage = memo(
+  StreamdownImageComponent,
+  (prevProps, nextProps) => prevProps.uri === nextProps.uri && prevProps.alt === nextProps.alt
+);
+
+const styles = StyleSheet.create({
+  container: {
+    marginVertical: 12,
+  },
+  image: {
+    width: "100%",
+    height: 200,
+    borderRadius: 8,
+  },
+  hidden: {
+    opacity: 0,
+  },
+  loadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 8,
+    height: 200,
+  },
+  errorContainer: {
+    backgroundColor: "rgba(255, 0, 0, 0.1)",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 100,
+  },
+  errorText: {
+    color: "#dc2626",
+    textAlign: "center",
+  },
+  caption: {
+    textAlign: "center",
+    fontSize: 14,
+    marginTop: 4,
+  },
+});

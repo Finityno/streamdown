@@ -1,91 +1,98 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { Streamdown } from "../index";
+import { parseIncompleteMarkdown } from "../lib/parse-incomplete-markdown";
 
 describe("Dollar sign handling", () => {
-  it("should not render dollar amounts as math", () => {
-    const content = "$20 is a sum that isn't larger than a few dollars";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
+  describe("parseIncompleteMarkdown dollar sign tests", () => {
+    it("does not auto-complete single dollar signs (currency)", () => {
+      const text = "Text with $formula";
+      const result = parseIncompleteMarkdown(text);
+      // Single dollar signs should NOT be auto-completed
+      expect(result).toBe("Text with $formula");
+    });
 
-    // Check if content is incorrectly wrapped in math elements
-    const katexElements = container.querySelectorAll(".katex");
+    it("does not auto-complete dollar at start", () => {
+      const result = parseIncompleteMarkdown("$incomplete");
+      expect(result).toBe("$incomplete");
+    });
 
-    // The text should be rendered as plain text, not math
-    expect(katexElements.length).toBe(0);
+    it("keeps paired dollar signs unchanged", () => {
+      const text = "Text with $x^2 + y^2 = z^2$";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    // Check that the dollar signs are preserved in the text
-    const text = container.textContent;
-    expect(text).toContain("$20");
-    expect(text).toContain("dollars");
-  });
+    it("handles multiple inline dollar sections", () => {
+      const text = "$a = 1$ and $b = 2$";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-  it("should handle multiple dollar signs in text", () => {
-    const content = "The price is $50 and the discount is $10 off";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
+    it("does not complete odd number of dollar signs", () => {
+      const result = parseIncompleteMarkdown("$first$ and $second");
+      expect(result).toBe("$first$ and $second");
+    });
 
-    const katexElements = container.querySelectorAll(".katex");
-    expect(katexElements.length).toBe(0);
+    it("completes block math ($$) but not single $", () => {
+      const result = parseIncompleteMarkdown("$$block$$ and $inline");
+      expect(result).toBe("$$block$$ and $inline");
+    });
 
-    // Check that both dollar amounts are preserved
-    const text = container.textContent;
-    expect(text).toContain("$50");
-    expect(text).toContain("$10");
-  });
+    it("completes incomplete block math", () => {
+      const result = parseIncompleteMarkdown("$$E = mc^2");
+      expect(result).toBe("$$E = mc^2$$");
+    });
 
-  it("should handle single dollar sign at end of text", () => {
-    const content = "The cost is $";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
+    it("does not modify currency values", () => {
+      const text = "$20 is a sum";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    const katexElements = container.querySelectorAll(".katex");
-    expect(katexElements.length).toBe(0);
+    it("handles multiple dollar amounts", () => {
+      const text = "The price is $50 and the discount is $10 off";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    // Check that the single dollar sign is preserved without adding a trailing one
-    const text = container.textContent;
-    expect(text).toBe("The cost is $");
-  });
+    it("handles single dollar at end", () => {
+      const text = "The cost is $";
+      const result = parseIncompleteMarkdown(text);
+      // Should NOT add a trailing dollar
+      expect(result).toBe(text);
+    });
 
-  it("should handle text with dollar sign followed by non-numeric characters", () => {
-    const content = "Use $variable in the code";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
+    it("handles dollar with variables", () => {
+      const text = "Use $variable in the code";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    const katexElements = container.querySelectorAll(".katex");
-    expect(katexElements.length).toBe(0);
+    it("handles mixed currency and block math", () => {
+      const text = "Price $99.99 and formula $$x^2$$";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    const text = container.textContent;
-    expect(text).toContain("$variable");
-  });
+    it("does not add dollar when single dollar at start", () => {
+      const text = "$x + y = z";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-  it("should still render block math with double dollar signs", () => {
-    const content = "Display math: $$E = mc^2$$";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
+    it("handles dollar with underscores", () => {
+      const text = "$variable_name is used";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-    const katexElements = container.querySelectorAll(".katex");
-    // Block math should still work
-    expect(katexElements.length).toBeGreaterThan(0);
-  });
+    it("handles price ranges", () => {
+      const text = "Price range: $10 - $20";
+      const result = parseIncompleteMarkdown(text);
+      expect(result).toBe(text);
+    });
 
-  it("should not render inline math with single dollar signs", () => {
-    const content = "This $x = y$ should not be rendered as math";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
-
-    const katexElements = container.querySelectorAll(".katex");
-    // With singleDollarTextMath: false, this should not render as math
-    expect(katexElements.length).toBe(0);
-
-    const text = container.textContent;
-    expect(text).toContain("$x = y$");
-  });
-
-  it("should handle mixed content with both currency and block math", () => {
-    const content =
-      "The price is $99.99 and the formula is $$x^2 + y^2 = z^2$$";
-    const { container } = render(<Streamdown>{content}</Streamdown>);
-
-    const katexElements = container.querySelectorAll(".katex");
-    // Only the block math should render
-    expect(katexElements.length).toBe(1);
-
-    const text = container.textContent;
-    expect(text).toContain("$99.99");
+    it("completes incomplete triple dollar signs", () => {
+      const result = parseIncompleteMarkdown("$$$");
+      expect(result).toBe("$$$$$");
+    });
   });
 });

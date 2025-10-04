@@ -1,204 +1,130 @@
-# Streamdown
+# Streamdown for React Native
 
-A drop-in replacement for react-markdown, designed for AI-powered streaming.
+A React Native markdown renderer designed for AI-powered streaming with incomplete markdown support.
 
 [![npm version](https://img.shields.io/npm/v/streamdown)](https://www.npmjs.com/package/streamdown)
+[![License](https://img.shields.io/npm/l/streamdown)](https://github.com/vercel/streamdown/blob/main/LICENSE)
 
 ## Overview
 
-Formatting Markdown is easy, but when you tokenize and stream it, new challenges arise. Streamdown is built specifically to handle the unique requirements of streaming Markdown content from AI models, providing seamless formatting even with incomplete or unterminated Markdown blocks.
+Formatting Markdown is easy, but when you tokenize and stream it from AI models, new challenges arise. **Streamdown** is built specifically to handle the unique requirements of streaming Markdown content in React Native applications, providing seamless formatting even with incomplete or unterminated Markdown blocks.
 
-Streamdown powers the [AI Elements Response](https://ai-sdk.dev/elements/components/response) component but can be installed as a standalone package for your own streaming needs.
+This is the React Native version of the Streamdown library, optimized for mobile applications with the same powerful streaming capabilities as the web version.
 
 ## Features
 
-- 🚀 **Drop-in replacement** for `react-markdown`
+- 🚀 **React Native optimized** - Built specifically for React Native
 - 🔄 **Streaming-optimized** - Handles incomplete Markdown gracefully
 - 🎨 **Unterminated block parsing** - Styles incomplete bold, italic, code, links, and headings
-- 📊 **GitHub Flavored Markdown** - Tables, task lists, and strikethrough support
-- 🔢 **Math rendering** - LaTeX equations via KaTeX
-- 📈 **Mermaid diagrams** - Render Mermaid diagrams as code blocks with a button to render them
-- 🎯 **Code syntax highlighting** - Beautiful code blocks with Shiki
-- 🛡️ **Security-first** - Built on harden-react-markdown for safe rendering
+- 📊 **GitHub Flavored Markdown** - Tables, task lists, and strikethrough support via react-native-marked
+- 🎯 **Customizable theming** - Complete control over colors, fonts, and spacing
+- 🛡️ **TypeScript** - Full type safety with exported types
 - ⚡ **Performance optimized** - Memoized rendering for efficient updates
 
 ## Installation
 
-```bash
-npm i streamdown
-```
+\`\`\`bash
+npm install streamdown react-native-marked react-native-svg
+# or
+yarn add streamdown react-native-marked react-native-svg
+# or
+pnpm add streamdown react-native-marked react-native-svg
+\`\`\`
 
-Then, update your Tailwind `globals.css` to include the following.
-
-```css
-@source "../node_modules/streamdown/dist/index.js";
-```
-
-Make sure the path matches the location of the `node_modules` folder in your project. This will ensure that the Streamdown styles are applied to your project.
+For iOS, also run:
+\`\`\`bash
+cd ios && pod install
+\`\`\`
 
 ## Usage
 
 ### Basic Example
 
-```tsx
+\`\`\`tsx
+import React from 'react';
+import { ScrollView } from 'react-native';
 import { Streamdown } from 'streamdown';
 
-export default function Page() {
-  const markdown = "# Hello World\n\nThis is **streaming** markdown!";
-
-  return <Streamdown>{markdown}</Streamdown>;
-}
-```
-
-### Mermaid Diagrams
-
-Streamdown supports Mermaid diagrams using the `mermaid` language identifier:
-
-```tsx
-import { Streamdown } from 'streamdown';
-import type { MermaidConfig } from 'mermaid';
-
-export default function Page() {
-  const markdown = `
-# Flowchart Example
-
-\`\`\`mermaid
-graph TD
-    A[Start] --> B{Is it working?}
-    B -->|Yes| C[Great!]
-    B -->|No| D[Debug]
-    D --> B
-\`\`\`
-
-# Sequence Diagram
-
-\`\`\`mermaid
-sequenceDiagram
-    participant User
-    participant API
-    participant Database
-
-    User->>API: Request data
-    API->>Database: Query
-    Database-->>API: Results
-    API-->>User: Response
-\`\`\`
-  `;
-
-  // Optional: Customize Mermaid theme and colors
-  const mermaidConfig: MermaidConfig = {
-    theme: 'dark',
-    themeVariables: {
-      primaryColor: '#ff0000',
-      primaryTextColor: '#fff'
-    }
-  };
+export default function App() {
+  const markdown = "# Hello World\\n\\nThis is **streaming** markdown!";
 
   return (
-    <Streamdown mermaidConfig={mermaidConfig}>
-      {markdown}
-    </Streamdown>
+    <ScrollView>
+      <Streamdown>{markdown}</Streamdown>
+    </ScrollView>
   );
 }
-```
+\`\`\`
 
-### With AI SDK
+### With Custom Theme
 
-```tsx
-'use client';
-
-import { useChat } from '@ai-sdk/react';
-import { useState } from 'react';
+\`\`\`tsx
+import React from 'react';
+import { ScrollView } from 'react-native';
 import { Streamdown } from 'streamdown';
 
-export default function Page() {
-  const { messages, sendMessage, status } = useChat();
-  const [input, setInput] = useState('');
+const theme = {
+  colors: {
+    text: '#FFFFFF',
+    background: '#000000',
+    primary: '#3B82F6',
+    codeBackground: '#1E1E1E',
+    linkText: '#60A5FA',
+  },
+  fontSizes: {
+    base: 16,
+    lg: 20,
+    '2xl': 24,
+    '3xl': 32,
+  },
+  spacing: {
+    md: 16,
+    lg: 24,
+  },
+};
+
+export default function App() {
+  const markdown = "# Dark Theme Example\\n\\nWith custom colors and sizing!";
 
   return (
-    <>
-      {messages.map(message => (
-        <div key={message.id}>
-          {message.parts.filter(part => part.type === 'text').map((part, index) => (
-            <Streamdown key={index}>{part.text}</Streamdown>
-          ))}
-        </div>
-      ))}
-
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          if (input.trim()) {
-            sendMessage({ text: input });
-            setInput('');
-          }
-        }}
-      >
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={status !== 'ready'}
-          placeholder="Say something..."
-        />
-        <button type="submit" disabled={status !== 'ready'}>
-          Submit
-        </button>
-      </form>
-    </>
+    <ScrollView style={{ backgroundColor: '#000000' }}>
+      <Streamdown theme={theme}>{markdown}</Streamdown>
+    </ScrollView>
   );
 }
-```
+\`\`\`
 
 ## Props
 
-Streamdown accepts all the same props as react-markdown, plus additional streaming-specific options:
-
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `children` | `string` | - | The Markdown content to render |
-| `parseIncompleteMarkdown` | `boolean` | `true` | Parse and style unterminated Markdown blocks |
-| `className` | `string` | - | CSS class for the container |
-| `components` | `object` | - | Custom component overrides |
-| `remarkPlugins` | `array` | `[remarkGfm, remarkMath]` | Remark plugins to use |
-| `rehypePlugins` | `array` | `[rehypeKatex]` | Rehype plugins to use |
-| `allowedImagePrefixes` | `array` | `['*']` | Allowed image URL prefixes |
-| `allowedLinkPrefixes` | `array` | `['*']` | Allowed link URL prefixes |
-| `defaultOrigin` | `string` | - | Default origin to use for relative URLs in links and images |
-| `shikiTheme` | `[BundledTheme, BundledTheme]` | `['github-light', 'github-dark']` | The light and dark themes to use for code blocks |
-| `mermaidConfig` | `MermaidConfig` | - | Custom configuration for Mermaid diagrams (theme, colors, etc.) |
-| `controls` | `boolean \| { table?: boolean, code?: boolean, mermaid?: boolean }` | `true` | Control visibility of copy/download buttons |
+| \`children\` | \`string\` | - | The Markdown content to render |
+| \`parseIncompleteMarkdown\` | \`boolean\` | \`true\` | Parse and style unterminated Markdown blocks |
+| \`theme\` | \`Theme\` | - | Custom theme object for colors, fonts, and spacing |
+| \`renderer\` | \`RendererInterface\` | - | Custom renderer for markdown elements |
+| \`containerStyle\` | \`ViewStyle\` | - | React Native style for the container View |
 
-## Architecture
+## Supported Markdown Features
 
-Streamdown is built as a monorepo with:
-
-- **`packages/streamdown`** - The core React component library
-- **`apps/website`** - Documentation and demo site
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build the streamdown package
-pnpm --filter streamdown build
-
-# Run development server
-pnpm dev
-
-# Run tests
-pnpm test
-
-# Build packages
-pnpm build
-```
+- ✅ Headings (H1-H6)
+- ✅ Paragraphs
+- ✅ **Bold** and *italic* text
+- ✅ ~~Strikethrough~~
+- ✅ \`Inline code\`
+- ✅ Code blocks
+- ✅ Links
+- ✅ Lists (ordered and unordered)
+- ✅ Blockquotes
+- ✅ Tables
+- ✅ Horizontal rules
+- ✅ Incomplete markdown auto-completion
 
 ## Requirements
 
-- Node.js >= 18
-- React >= 19.1.1
+- React Native >= 0.70.0
+- React >= 18.0.0
+- react-native-svg >= 13.0.0
 
-## Contributing
+## License
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Apache-2.0

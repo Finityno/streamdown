@@ -1,0 +1,34 @@
+# Source files
+/lib
+/index.tsx
+/tsup.config.ts
+/tsconfig.json
+/jest.config.cjs
+/vitest.config.ts
+
+# Tests
+/__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Build artifacts
+/node_modules
+/.turbo
+*.log
+
+# Documentation
+/OPTIMIZATION_PATTERNS.md
+
+# Development
+/.vscode
+/.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+/.github
+/.changeset
